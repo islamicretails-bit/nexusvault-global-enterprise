@@ -1,76 +1,229 @@
-### Unit Tests for Vercel Configuration
-To ensure the Vercel configuration is correct and functioning as expected, we can write unit tests to validate its properties. We'll use Jest for this example, but you can adapt it to your preferred testing framework.
+Here are some unit tests for the provided code:
 
-#### `vercelConfig.test.js`
+**src/lib/ai-generator.ts**
+import { Decimal } from '@prisma/client';
+import { generateProduct } from './ai-generator';
 
-const vercelConfig = require('./vercel.json');
+describe('ai-generator', () => {
+  it('should create a new product', async () => {
+    const name = 'Test Product';
+    const description = 'This is a test product';
+    const price = Decimal.from('10.99');
 
-describe('Vercel Configuration', () => {
-  it('should have the correct version', () => {
-    expect(vercelConfig.version).toBe(2);
+    const product = await generateProduct(name, description, price);
+
+    expect(product.name).toBe(name);
+    expect(product.description).toBe(description);
+    expect(product.price).toBe(price);
+  });
+});
+
+**src/lib/security.ts**
+import { Decimal } from '@prisma/client';
+import { generateLicenseKey, generateDownloadLink } from './security';
+
+describe('security', () => {
+  it('should generate a new license key', async () => {
+    const orderId = 'test-order-id';
+    const productId = 'test-product-id';
+
+    const licenseKey = await generateLicenseKey(orderId, productId);
+
+    expect(licenseKey.orderId).toBe(orderId);
+    expect(licenseKey.productId).toBe(productId);
+    expect(licenseKey.licenseKey).toBeInstanceOf(String);
   });
 
-  describe('Builds', () => {
-    it('should have one build', () => {
-      expect(vercelConfig.builds).toHaveLength(1);
+  it('should generate a new download link', async () => {
+    const productId = 'test-product-id';
+
+    const downloadLink = await generateDownloadLink(productId);
+
+    expect(downloadLink.productId).toBe(productId);
+    expect(downloadLink.downloadLink).toBeInstanceOf(String);
+  });
+});
+
+**src/lib/geo-currency.ts**
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getCurrency } from './geo-currency';
+
+describe('geo-currency', () => {
+  it('should get the currency based on the IP address', async () => {
+    const req = {
+      headers: {
+        ip: '192.168.1.1',
+      },
+    };
+    const res = {} as NextApiResponse;
+
+    const currency = await getCurrency(req, res);
+
+    expect(currency).toBe('PKR');
+  });
+
+  it('should get the currency based on the IP address (US)', async () => {
+    const req = {
+      headers: {
+        ip: '192.168.1.2',
+      },
+    };
+    const res = {} as NextApiResponse;
+
+    const currency = await getCurrency(req, res);
+
+    expect(currency).toBe('USD');
+  });
+
+  it('should get the currency based on the IP address (GB)', async () => {
+    const req = {
+      headers: {
+        ip: '192.168.1.3',
+      },
+    };
+    const res = {} as NextApiResponse;
+
+    const currency = await getCurrency(req, res);
+
+    expect(currency).toBe('GBP');
+  });
+});
+
+**src/app/api/cron/auto-generate/route.ts**
+import { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from '@prisma/client';
+import { handler } from './route';
+
+describe('auto-generate route', () => {
+  it('should return products based on search query', async () => {
+    const req = {
+      method: 'POST',
+      body: {
+        searchQuery: 'test',
+      },
+    };
+    const res = {} as NextApiResponse;
+
+    const prisma = new PrismaClient();
+    const products = await prisma.product.findMany({
+      where: {
+        name: {
+          contains: 'test',
+        },
+      },
     });
 
-    it('should have the correct build source', () => {
-      expect(vercelConfig.builds[0].src).toBe('src/app/page.tsx');
-    });
+    await handler(req, res);
 
-    it('should use the correct build plugin', () => {
-      expect(vercelConfig.builds[0].use).toBe('@vercel/static-build');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(products);
+  });
+
+  it('should return 405 for invalid method', async () => {
+    const req = {
+      method: 'GET',
+    };
+    const res = {} as NextApiResponse;
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(405);
+    expect(res.body).toEqual({ message: 'Method not allowed' });
+  });
+});
+
+**src/app/office/page.tsx**
+import { NextPage } from 'next';
+import { useState } from 'react';
+import { PrismaClient } from '@prisma/client';
+import { OfficePage } from './page';
+
+describe('office page', () => {
+  it('should render the office page', () => {
+    const prisma = new PrismaClient();
+    const passcode = 'NexaVault2026Secret!';
+
+    const wrapper = shallow(<OfficePage />);
+    expect(wrapper).toMatchSnapshot();
+  });
+});
+
+**src/types/index.ts**
+import { Product, Order, License, Analytics, Affiliate, Vendor, CustomRequest, AutoPipelineLog } from './types';
+
+describe('types', () => {
+  it('should define the Product interface', () => {
+    expect(Product).toEqual({
+      id: expect.any(String),
+      name: expect.any(String),
+      description: expect.any(String),
+      price: expect.any(Decimal),
+      category: expect.any(String),
     });
   });
 
-  describe('Routes', () => {
-    it('should have four routes', () => {
-      expect(vercelConfig.routes).toHaveLength(4);
-    });
-
-    it('should have the correct office route', () => {
-      const officeRoute = vercelConfig.routes.find((route) => route.src === '/office');
-      expect(officeRoute.dest).toBe('src/app/office/page.tsx');
-    });
-
-    it('should have the correct AI generate product route', () => {
-      const aiRoute = vercelConfig.routes.find((route) => route.src === '/api/ai/generate-product');
-      expect(aiRoute.dest).toBe('src/app/api/ai/generate-product/route.ts');
-    });
-
-    it('should have the correct payments checkout route', () => {
-      const paymentsRoute = vercelConfig.routes.find((route) => route.src === '/api/payments/checkout');
-      expect(paymentsRoute.dest).toBe('src/app/api/payments/checkout/route.ts');
-    });
-
-    it('should have the correct admin analytics route', () => {
-      const adminRoute = vercelConfig.routes.find((route) => route.src === '/api/admin/analytics');
-      expect(adminRoute.dest).toBe('src/app/api/admin/analytics/route.ts');
+  it('should define the Order interface', () => {
+    expect(Order).toEqual({
+      id: expect.any(String),
+      userId: expect.any(String),
+      productId: expect.any(String),
+      quantity: expect.any(Number),
     });
   });
 
-  describe('Environment Variables', () => {
-    it('should have four environment variables', () => {
-      expect(Object.keys(vercelConfig.env)).toHaveLength(4);
+  it('should define the License interface', () => {
+    expect(License).toEqual({
+      id: expect.any(String),
+      orderId: expect.any(String),
+      productId: expect.any(String),
+      licenseKey: expect.any(String),
     });
+  });
 
-    it('should have the correct Barclays API key variable', () => {
-      expect(vercelConfig.env.BARCLAYS_API_KEY).toBe('@barclays_api_key');
+  it('should define the Analytics interface', () => {
+    expect(Analytics).toEqual({
+      id: expect.any(String),
+      userId: expect.any(String),
+      productId: expect.any(String),
+      views: expect.any(Number),
     });
+  });
 
-    it('should have the correct Citibank API key variable', () => {
-      expect(vercelConfig.env.CITIBANK_API_KEY).toBe('@citibank_api_key');
+  it('should define the Affiliate interface', () => {
+    expect(Affiliate).toEqual({
+      id: expect.any(String),
+      email: expect.any(String),
+      name: expect.any(String),
+      commission: expect.any(Decimal),
     });
+  });
 
-    it('should have the correct JazzCash API key variable', () => {
-      expect(vercelConfig.env.JAZZCASH_API_KEY).toBe('@jazzcash_api_key');
+  it('should define the Vendor interface', () => {
+    expect(Vendor).toEqual({
+      id: expect.any(String),
+      email: expect.any(String),
+      name: expect.any(String),
+      products: expect.any(Array),
     });
+  });
 
-    it('should have the correct admin secret passcode variable', () => {
-      expect(vercelConfig.env.ADMIN_SECRET_PASSCODE).toBe('@admin_secret_passcode');
+  it('should define the CustomRequest interface', () => {
+    expect(CustomRequest).toEqual({
+      id: expect.any(String),
+      userId: expect.any(String),
+      description: expect.any(String),
+      price: expect.any(Decimal),
+    });
+  });
+
+  it('should define the AutoPipelineLog interface', () => {
+    expect(AutoPipelineLog).toEqual({
+      id: expect.any(String),
+      productId: expect.any(String),
+      status: expect.any(String),
+      timestamp: expect.any(DateTime),
     });
   });
 });
 
-These tests cover the basic properties of the Vercel configuration, including the version, builds, routes, and environment variables. You can add more tests as needed to ensure your configuration is correct and functioning as expected.
+Note that these tests are just examples and may need to be modified to fit the specific requirements of your application. Additionally, you will need to install the necessary testing libraries and frameworks to run these tests.
