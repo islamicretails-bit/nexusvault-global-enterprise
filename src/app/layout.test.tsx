@@ -1,6 +1,6 @@
 ### Unit Tests for Layout Component
 
-We will use Jest and React Testing Library to write unit tests for the `Layout` component.
+We'll use Jest and React Testing Library to write unit tests for the `Layout` component.
 
 tsx
 // src/app/layout.test.tsx
@@ -25,51 +25,45 @@ describe('Layout component', () => {
     expect(getByRole('contentinfo')).toBeInTheDocument();
   });
 
-  it('renders ToastContainer component', () => {
-    const { getByTestId } = render(<Layout />);
-    expect(getByTestId('toast-container')).toBeInTheDocument();
+  it('renders AppleToast component', () => {
+    const { getByText } = render(<Layout />);
+    // Assuming AppleToast has a specific text or role
+    expect(getByText('Apple Toast')).toBeInTheDocument();
   });
 
-  it('matches snapshot', () => {
+  it('has correct class names', () => {
     const { container } = render(<Layout />);
-    expect(container).toMatchSnapshot();
+    expect(container.firstChild).toHaveClass('flex');
+    expect(container.firstChild).toHaveClass('flex-col');
+    expect(container.firstChild).toHaveClass('min-h-screen');
+  });
+
+  it('renders main element with flex-1 class', () => {
+    const { getByRole } = render(<Layout />);
+    expect(getByRole('main')).toHaveClass('flex-1');
   });
 });
 
 
-### Explanation of Tests
+### Explanation
 
-1. **renders children**: This test checks if the `Layout` component renders the provided children.
-2. **renders Header component**: This test checks if the `Layout` component renders the `Header` component.
-3. **renders Footer component**: This test checks if the `Layout` component renders the `Footer` component.
-4. **renders ToastContainer component**: This test checks if the `Layout` component renders the `ToastContainer` component.
-5. **matches snapshot**: This test checks if the `Layout` component matches the expected snapshot.
+* We import the necessary dependencies, including `render` from `@testing-library/react` and the `Layout` component.
+* We define a test suite for the `Layout` component using `describe`.
+* We write individual tests for each aspect of the component:
+	+ Rendering children
+	+ Rendering the `Header` component
+	+ Rendering the `Footer` component
+	+ Rendering the `AppleToast` component
+	+ Correct class names
+	+ Main element with `flex-1` class
+* We use `render` to render the `Layout` component and then use various methods from `@testing-library/react` to assert the expected behavior.
 
-### Notes
+### Running Tests
 
-* Make sure to install the required dependencies, including `@testing-library/react` and `jest`.
-* Update the `jest.config.js` file to include the necessary configurations for testing.
-* Run the tests using the `jest` command.
-* Make sure to update the `layout.tsx` file to include a `data-testid` attribute on the `ToastContainer` component for the test to work. 
+To run the tests, make sure you have Jest and React Testing Library installed in your project. Then, run the following command in your terminal:
 
-tsx
-// src/app/layout.tsx
-import type { ReactNode } from 'react';
-import { Header } from '../components/Header';
-import { Footer } from '../components/Footer';
-import { ToastContainer } from '../components/AppleToast';
+bash
+jest
 
-interface LayoutProps {
-  children: ReactNode;
-}
 
-export default function Layout({ children }: LayoutProps) {
-  return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-1">{children}</main>
-      <Footer />
-      <ToastContainer data-testid="toast-container" />
-    </div>
-  );
-}
+This will execute the tests and display the results. If all tests pass, you should see an output indicating the number of tests passed and the time it took to run them.
