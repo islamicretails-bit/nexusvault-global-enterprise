@@ -4,67 +4,49 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { cronJob } from 'cron';
 import { generateProduct } from '../../../lib/ai-generator';
-import { getAIRouterConfig } from '../../../lib/ai-router';
-import { getGeoLocation } from '../../../lib/geo-currency';
-import { sendNotification } from '../../../lib/notifications';
-import { generateSEO } from '../../../lib/seo-generator';
+import { AIRouterConfig } from '../../../types/index';
+import { getAIModel } from '../../../lib/ai-router';
 
 const prisma = new PrismaClient();
 
-interface AutoGenerateRequest extends NextApiRequest {
-  body: {
-    productId: string;
-  };
-}
-
-interface AutoGenerateResponse extends NextApiResponse {
-  status: number;
-  message: string;
-}
-
-const autoGenerateRoute = async (req: AutoGenerateRequest, res: AutoGenerateResponse) => {
+const autoGenerateRoute = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const { productId } = req.body;
-    const product = await prisma.product.findUnique({ where: { id: productId } });
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+    const aiRouterConfig: AIRouterConfig = {
+      model: 'groq',
+      fallbackModel: 'gemini',
+    };
+
+    const aiModel = getAIModel(aiRouterConfig);
+
+    const products = await prisma.product.findMany({
+      where: {
+        status: 'draft',
+      },
+    });
+
+    if (products.length === 0) {
+      const newProduct = await generateProduct(aiModel);
+      await prisma.product.create({
+        data: newProduct,
+      });
     }
 
-    const aiRouterConfig = await getAIRouterConfig();
-    const geoLocation = await getGeoLocation(req.ip);
-    const generatedProduct = await generateProduct(product, aiRouterConfig, geoLocation);
-
-    if (generatedProduct) {
-      await prisma.product.update({ where: { id: productId }, data: generatedProduct });
-      await sendNotification('Product generated successfully', 'success');
-      await generateSEO(generatedProduct);
-      return res.status(200).json({ message: 'Product generated successfully' });
-    } else {
-      await sendNotification('Failed to generate product', 'error');
-      return res.status(500).json({ message: 'Failed to generate product' });
-    }
+    res.status(200).json({ message: 'Auto generate route executed successfully' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Error executing auto generate route' });
   }
 };
 
-export default async function handler(req: AutoGenerateRequest, res: AutoGenerateResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
-    return autoGenerateRoute(req, res);
+    await autoGenerateRoute(req, res);
   } else {
-    return res.status(405).json({ message: 'Method not allowed' });
+    res.status(405).json({ message: 'Method not allowed' });
   }
 }
 
-// Cron job to auto-generate products every hour
+// Set up cron job to run every hour
 cronJob('0 * * * *', async () => {
-  try {
-    const products = await prisma.product.findMany();
-    for (const product of products) {
-      await autoGenerateRoute({ body: { productId: product.id } }, { status: 200, message: '' });
-    }
-  } catch (error) {
-    console.error(error);
-  }
+  await autoGenerateRoute(null, null);
 });
