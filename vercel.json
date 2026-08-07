@@ -1,105 +1,76 @@
-To generate unit tests for the provided `vercel.json` configuration, we'll focus on testing the routing and environment variable configurations. We'll use Jest as our testing framework.
+### Unit Tests for Vercel Configuration
+To ensure the Vercel configuration is correct and functioning as expected, we can write unit tests to validate its properties. We'll use Jest for this example, but you can adapt it to your preferred testing framework.
 
-### vercel.config.test.js
+#### `vercelConfig.test.js`
 
 const vercelConfig = require('./vercel.json');
 
 describe('Vercel Configuration', () => {
+  it('should have the correct version', () => {
+    expect(vercelConfig.version).toBe(2);
+  });
+
   describe('Builds', () => {
-    it('should have a single build configuration', () => {
+    it('should have one build', () => {
       expect(vercelConfig.builds).toHaveLength(1);
     });
 
-    it('should use @vercel/static-build for the build', () => {
-      expect(vercelConfig.builds[0].use).toBe('@vercel/static-build');
+    it('should have the correct build source', () => {
+      expect(vercelConfig.builds[0].src).toBe('src/app/page.tsx');
     });
 
-    it('should build files from src/app/**/*', () => {
-      expect(vercelConfig.builds[0].src).toBe('src/app/**/*');
+    it('should use the correct build plugin', () => {
+      expect(vercelConfig.builds[0].use).toBe('@vercel/static-build');
     });
   });
 
   describe('Routes', () => {
-    it('should have three routes configured', () => {
-      expect(vercelConfig.routes).toHaveLength(3);
+    it('should have four routes', () => {
+      expect(vercelConfig.routes).toHaveLength(4);
     });
 
-    it('should route /api/(.*) to src/app/api/$1', () => {
-      const apiRoute = vercelConfig.routes.find((route) => route.src === '/api/(.*)');
-      expect(apiRoute.dest).toBe('src/app/api/$1');
-    });
-
-    it('should route /office to src/app/office/page.tsx', () => {
+    it('should have the correct office route', () => {
       const officeRoute = vercelConfig.routes.find((route) => route.src === '/office');
       expect(officeRoute.dest).toBe('src/app/office/page.tsx');
     });
 
-    it('should route /(.*) to src/app/page.tsx', () => {
-      const catchAllRoute = vercelConfig.routes.find((route) => route.src === '/(.*)');
-      expect(catchAllRoute.dest).toBe('src/app/page.tsx');
+    it('should have the correct AI generate product route', () => {
+      const aiRoute = vercelConfig.routes.find((route) => route.src === '/api/ai/generate-product');
+      expect(aiRoute.dest).toBe('src/app/api/ai/generate-product/route.ts');
+    });
+
+    it('should have the correct payments checkout route', () => {
+      const paymentsRoute = vercelConfig.routes.find((route) => route.src === '/api/payments/checkout');
+      expect(paymentsRoute.dest).toBe('src/app/api/payments/checkout/route.ts');
+    });
+
+    it('should have the correct admin analytics route', () => {
+      const adminRoute = vercelConfig.routes.find((route) => route.src === '/api/admin/analytics');
+      expect(adminRoute.dest).toBe('src/app/api/admin/analytics/route.ts');
     });
   });
 
   describe('Environment Variables', () => {
-    it('should have five environment variables configured', () => {
-      expect(Object.keys(vercelConfig.env)).toHaveLength(5);
+    it('should have four environment variables', () => {
+      expect(Object.keys(vercelConfig.env)).toHaveLength(4);
     });
 
-    it('should have DATABASE_URL environment variable', () => {
-      expect(vercelConfig.env.DATABASE_URL).toBe('@vercel/env');
+    it('should have the correct Barclays API key variable', () => {
+      expect(vercelConfig.env.BARCLAYS_API_KEY).toBe('@barclays_api_key');
     });
 
-    it('should have BARCLAYS_API_KEY environment variable', () => {
-      expect(vercelConfig.env.BARCLAYS_API_KEY).toBe('@vercel/env');
+    it('should have the correct Citibank API key variable', () => {
+      expect(vercelConfig.env.CITIBANK_API_KEY).toBe('@citibank_api_key');
     });
 
-    it('should have CITIBANK_API_KEY environment variable', () => {
-      expect(vercelConfig.env.CITIBANK_API_KEY).toBe('@vercel/env');
+    it('should have the correct JazzCash API key variable', () => {
+      expect(vercelConfig.env.JAZZCASH_API_KEY).toBe('@jazzcash_api_key');
     });
 
-    it('should have JAZZCASH_API_KEY environment variable', () => {
-      expect(vercelConfig.env.JAZZCASH_API_KEY).toBe('@vercel/env');
-    });
-
-    it('should have ADMIN_SECRET_PASSCODE environment variable', () => {
-      expect(vercelConfig.env.ADMIN_SECRET_PASSCODE).toBe('@vercel/env');
+    it('should have the correct admin secret passcode variable', () => {
+      expect(vercelConfig.env.ADMIN_SECRET_PASSCODE).toBe('@admin_secret_passcode');
     });
   });
 });
 
-These tests cover the following scenarios:
-
-1.  **Build Configuration**: Verifies that there is a single build configuration using `@vercel/static-build` and that it builds files from `src/app/**/*`.
-2.  **Route Configuration**: Checks that there are three routes configured and that each route is correctly mapped to its destination.
-3.  **Environment Variables**: Confirms that there are five environment variables configured and that each variable is set to `@vercel/env`.
-
-To run these tests, make sure you have Jest installed in your project. You can install it using npm or yarn:
-
-bash
-npm install --save-dev jest
-
-
-or
-
-bash
-yarn add jest --dev
-
-
-Then, update your `package.json` to include a test script:
-
-json
-"scripts": {
-  "test": "jest"
-}
-
-
-Finally, run the tests using the following command:
-
-bash
-npm test
-
-
-or
-
-bash
-yarn test
+These tests cover the basic properties of the Vercel configuration, including the version, builds, routes, and environment variables. You can add more tests as needed to ensure your configuration is correct and functioning as expected.
