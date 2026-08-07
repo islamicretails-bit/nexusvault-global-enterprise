@@ -8,10 +8,10 @@ import { getGeoLocation } from '../lib/geo-currency';
 import { getNotifications } from '../lib/notifications';
 import { getSecureStorageUrl } from '../lib/s3-storage';
 import { getSeoMetadata } from '../lib/seo-generator';
-import Layout from '../components/Layout';
+import Head from 'next/head';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 import OfficeDashboard from '../components/office/Dashboard';
-import OfficeSettings from '../components/office/Settings';
-import OfficeNotifications from '../components/office/Notifications';
 
 const OfficePage: NextPage = () => {
   const { data: session, status } = useSession();
@@ -23,52 +23,63 @@ const OfficePage: NextPage = () => {
   const [seoMetadata, setSeoMetadata] = useState<any | null>(null);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      signIn();
-    }
-  }, [status]);
+    const fetchAiRouterConfig = async () => {
+      const config = await getAiRouterConfig();
+      setAiRouterConfig(config);
+    };
+    fetchAiRouterConfig();
 
-  useEffect(() => {
-    if (session) {
-      getAiRouterConfig().then((config) => setAiRouterConfig(config));
-      getGeoLocation().then((location) => setGeoLocation(location));
-      getNotifications().then((notifications) => setNotifications(notifications));
-      getSecureStorageUrl().then((url) => setSecureStorageUrl(url));
-      getSeoMetadata().then((metadata) => setSeoMetadata(metadata));
-    }
-  }, [session]);
+    const fetchGeoLocation = async () => {
+      const location = await getGeoLocation();
+      setGeoLocation(location);
+    };
+    fetchGeoLocation();
 
-  const handleSignOut = () => {
-    signOut();
-  };
+    const fetchNotifications = async () => {
+      const notifications = await getNotifications();
+      setNotifications(notifications);
+    };
+    fetchNotifications();
+
+    const fetchSecureStorageUrl = async () => {
+      const url = await getSecureStorageUrl();
+      setSecureStorageUrl(url);
+    };
+    fetchSecureStorageUrl();
+
+    const fetchSeoMetadata = async () => {
+      const metadata = await getSeoMetadata();
+      setSeoMetadata(metadata);
+    };
+    fetchSeoMetadata();
+  }, []);
+
+  if (status === 'unauthenticated') {
+    signIn();
+    return <div>Signing in...</div>;
+  }
+
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <Layout>
-      <div className="container mx-auto p-4 pt-6 md:p-6 lg:p-12 xl:p-24">
-        <div className="flex flex-wrap justify-center">
-          <div className="w-full lg:w-1/2 xl:w-1/3 p-6">
-            <OfficeDashboard
-              aiRouterConfig={aiRouterConfig}
-              geoLocation={geoLocation}
-              secureStorageUrl={secureStorageUrl}
-              seoMetadata={seoMetadata}
-            />
-          </div>
-          <div className="w-full lg:w-1/2 xl:w-1/3 p-6">
-            <OfficeSettings />
-          </div>
-          <div className="w-full lg:w-1/2 xl:w-1/3 p-6">
-            <OfficeNotifications notifications={notifications} />
-          </div>
-        </div>
-        <button
-          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-          onClick={handleSignOut}
-        >
-          Sign Out
-        </button>
-      </div>
-    </Layout>
+    <div>
+      <Head>
+        <title>Office Page</title>
+        <meta name="description" content="Office page description" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      <Header />
+      <OfficeDashboard
+        aiRouterConfig={aiRouterConfig}
+        geoLocation={geoLocation}
+        notifications={notifications}
+        secureStorageUrl={secureStorageUrl}
+        seoMetadata={seoMetadata}
+      />
+      <Footer />
+    </div>
   );
 };
 
