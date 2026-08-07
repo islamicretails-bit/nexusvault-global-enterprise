@@ -20,7 +20,7 @@ interface CheckoutRequest {
 interface CheckoutResponse {
   success: boolean;
   message: string;
-  orderId: string | null;
+  transactionId: string | null;
 }
 
 const checkoutRoute = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -31,7 +31,7 @@ const checkoutRoute = async (req: NextApiRequest, res: NextApiResponse) => {
   const { userId, productId, quantity, paymentMethod } = req.body as CheckoutRequest;
 
   if (!userId || !productId || !quantity || !paymentMethod) {
-    return res.status(400).json({ success: false, message: 'Invalid request body' });
+    return res.status(400).json({ success: false, message: 'Invalid request' });
   }
 
   try {
@@ -45,49 +45,38 @@ const checkoutRoute = async (req: NextApiRequest, res: NextApiResponse) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    const geoLocation = await geoCurrency.getGeoLocation(user.ipAddress);
+    const exchangeRate = await geoCurrency.getExchangeRate(geoLocation.countryCode);
+
+    const totalPrice = product.price * quantity * exchangeRate;
+
+    let transactionId: string | null = null;
+
+    if (paymentMethod === 'stripe') {
+      const stripeCustomer = await stripe.createCustomer(user.email, user.name);
+      const stripePaymentIntent = await stripe.createPaymentIntent(stripeCustomer.id, totalPrice);
+      const stripePaymentMethod = await stripe.createPaymentMethod(stripePaymentIntent.id, user.cardNumber, user.expMonth, user.expYear);
+      const stripeCharge = await stripe.createCharge(stripePaymentMethod.id, totalPrice);
+      transactionId = stripeCharge.id;
+    } else if (paymentMethod === 'paypal') {
+      const paypalPayment = await paypal.createPayment(totalPrice, user.email);
+      const paypalPaymentExecution = await paypal.executePayment(paypalPayment.id);
+      transactionId = paypalPaymentExecution.id;
+    }
+
     const order = await prisma.order.create({
       data: {
-        userId,
-        productId,
-        quantity,
-        total: product.price * quantity,
+        userId: user.id,
+        productId: product.id,
+        quantity: quantity,
+        totalPrice: totalPrice,
+        transactionId: transactionId,
       },
     });
 
-    if (paymentMethod === 'stripe') {
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: order.total,
-        currency: 'usd',
-        payment_method_types: ['card'],
-      });
+    await notifications.sendOrderConfirmationEmail(user.email, order.id);
 
-      const paymentIntentId = paymentIntent.id;
-      const clientSecret = paymentIntent.client_secret;
-
-      return res.json({
-        success: true,
-        message: 'Checkout successful',
-        orderId: order.id,
-        paymentIntentId,
-        clientSecret,
-      });
-    } else if (paymentMethod === 'paypal') {
-      const paymentUrl = await paypal.createPaymentUrl({
-        amount: order.total,
-        currency: 'usd',
-        return_url: `${req.headers.origin}/payment/success`,
-        cancel_url: `${req.headers.origin}/payment/cancel`,
-      });
-
-      return res.json({
-        success: true,
-        message: 'Checkout successful',
-        orderId: order.id,
-        paymentUrl,
-      });
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid payment method' });
-    }
+    return res.status(201).json({ success: true, message: 'Checkout successful', transactionId });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
