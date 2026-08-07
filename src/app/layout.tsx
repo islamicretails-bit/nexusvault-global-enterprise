@@ -3,7 +3,7 @@ tsx
 import type { ReactNode } from 'react';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
-import { ToastContainer } from '../components/AppleToast';
+import { AppleToast } from '../components/AppleToast';
 
 interface LayoutProps {
   children: ReactNode;
@@ -15,7 +15,7 @@ export default function Layout({ children }: LayoutProps) {
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
-      <ToastContainer />
+      <AppleToast />
     </div>
   );
 }
