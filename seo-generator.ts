@@ -11,7 +11,7 @@ interface SeoGeneratorOptions {
   keywords: string[];
   url: string;
   image: string;
-  type: string;
+  type: 'article' | 'website' | 'product';
 }
 
 class SeoGenerator {
@@ -25,7 +25,6 @@ class SeoGenerator {
     const metadata: OpenGraphMetadata = {
       title: this.options.title,
       description: this.options.description,
-      keywords: this.options.keywords,
       url: this.options.url,
       image: this.options.image,
       type: this.options.type,
@@ -40,8 +39,8 @@ class SeoGenerator {
       '@type': this.options.type,
       name: this.options.title,
       description: this.options.description,
-      image: this.options.image,
       url: this.options.url,
+      image: this.options.image,
     };
 
     return metadata;
@@ -68,12 +67,12 @@ export const getSeoMetadata = async (req: NextApiRequest, res: NextApiResponse) 
     keywords: keywords as string[],
     url: url as string,
     image: image as string,
-    type: type as string,
+    type: type as 'article' | 'website' | 'product',
   });
 
   const metadata = await seoGenerator.generateSeoMetadata();
 
-  return res.status(200).json(metadata);
+  return res.json(metadata);
 };
 
 export default SeoGenerator;
