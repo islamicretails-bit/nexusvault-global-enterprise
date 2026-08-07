@@ -8,8 +8,6 @@
   --text-color: #ffffff;
   --dark-text-color: #333333;
   --light-text-color: #cccccc;
-  --border-color: #444444;
-  --box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
 * {
@@ -24,7 +22,6 @@ body {
   line-height: 1.5;
   color: var(--text-color);
   background-color: var(--background-color);
-  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -45,19 +42,18 @@ h3 {
 }
 
 h4 {
-  font-size: 20px;
-}
-
-h5 {
   font-size: 18px;
 }
 
-h6 {
+h5 {
   font-size: 16px;
 }
 
+h6 {
+  font-size: 14px;
+}
+
 p {
-  font-size: 16px;
   margin-bottom: 20px;
 }
 
@@ -81,24 +77,6 @@ button {
 
 button:hover {
   background-color: var(--secondary-color);
-}
-
-input, textarea {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-}
-
-input:focus, textarea:focus {
-  outline: none;
-  border-color: var(--primary-color);
-}
-
-label {
-  display: block;
-  margin-bottom: 10px;
 }
 
 /* Glassmorphic UI Styles */
