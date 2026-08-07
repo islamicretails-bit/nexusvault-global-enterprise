@@ -1,63 +1,270 @@
-tsx
-// src/app/office/page.tsx
-import { useState } from 'react';
+**src/app/office/page.tsx**
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useSession, signIn, signOut } from 'next-auth/react';
-import { AiOutlineLock } from 'react-icons/ai';
+import { useSession } from 'next-auth/react';
+import { AiOutlineLock, AiOutlineUnlock } from 'react-icons/ai';
 import { toast } from 'react-toastify';
-import { getAdminSecretPasscode } from '../lib/security';
+import 'react-toastify/dist/ReactToastify.css';
+import { useTheme } from 'next-themes';
+import { ThemeProvider } from 'styled-components';
+import { Container, Row, Col, Button, Modal, Form } from 'react-bootstrap';
+import { useAuth } from '../lib/auth';
+import { useAdminOffice } from '../lib/admin-office';
+import { useTwoFactor } from '../lib/two-factor';
+import { useAnalytics } from '../lib/analytics';
+import { useProduct } from '../lib/product';
+import { useLicense } from '../lib/license';
+import { useOrder } from '../lib/order';
+import { useAffiliate } from '../lib/affiliate';
+import { useVendor } from '../lib/vendor';
+import { useCustomRequest } from '../lib/custom-request';
+import { useAutoPipeline } from '../lib/auto-pipeline';
+import { useDownload } from '../lib/download';
+import { useSecurity } from '../lib/security';
+import { useGeoCurrency } from '../lib/geo-currency';
+import { useThemeVariables } from '../lib/theme-variables';
+import { useToast } from '../lib/toast';
 
 const AdminOfficePage = () => {
-  const [passcode, setPasscode] = useState('');
-  const [isPasscodeValid, setIsPasscodeValid] = useState(false);
   const router = useRouter();
   const { data: session } = useSession();
+  const { theme } = useTheme();
+  const { adminOffice } = useAdminOffice();
+  const { twoFactor } = useTwoFactor();
+  const { analytics } = useAnalytics();
+  const { product } = useProduct();
+  const { license } = useLicense();
+  const { order } = useOrder();
+  const { affiliate } = useAffiliate();
+  const { vendor } = useVendor();
+  const { customRequest } = useCustomRequest();
+  const { autoPipeline } = useAutoPipeline();
+  const { download } = useDownload();
+  const { security } = useSecurity();
+  const { geoCurrency } = useGeoCurrency();
+  const { themeVariables } = useThemeVariables();
+  const { toast } = useToast();
 
-  const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPasscode(e.target.value);
-  };
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+  const [passcode, setPasscode] = useState('');
+  const [error, setError] = useState('');
 
-  const handlePasscodeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const adminSecretPasscode = getAdminSecretPasscode();
-    if (passcode === adminSecretPasscode) {
-      setIsPasscodeValid(true);
+  useEffect(() => {
+    if (session && session.user && session.user.adminOffice) {
       router.push('/office/dashboard');
-    } else {
-      toast.error('Invalid passcode');
+    }
+  }, [session, router]);
+
+  const handlePasscodeSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      const isValid = await adminOffice.validatePasscode(passcode);
+      if (isValid) {
+        router.push('/office/dashboard');
+      } else {
+        setError('Invalid passcode');
+      }
+    } catch (error) {
+      setError(error.message);
     }
   };
 
-  if (session && session.user.role === 'admin') {
-    return <div>You are already logged in as an admin</div>;
-  }
+  const handlePasscodeChange = (event) => {
+    setPasscode(event.target.value);
+  };
+
+  const handleTwoFactorSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      const isValid = await twoFactor.validateCode(passcode);
+      if (isValid) {
+        router.push('/office/dashboard');
+      } else {
+        setError('Invalid two-factor code');
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <form
-        onSubmit={handlePasscodeSubmit}
-        className="bg-white p-4 rounded shadow-md"
-      >
-        <h2 className="text-lg font-bold mb-2">Admin Office</h2>
-        <p className="text-gray-600 mb-4">
-          Enter the secret passcode to access the admin office
-        </p>
-        <input
-          type="password"
-          value={passcode}
-          onChange={handlePasscodeChange}
-          placeholder="Enter passcode"
-          className="w-full p-2 border border-gray-400 rounded mb-4"
-        />
-        <button
-          type="submit"
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        >
-          Submit
-        </button>
-      </form>
-    </div>
+    <ThemeProvider theme={themeVariables}>
+      <Container fluid className="p-0 m-0">
+        <Row className="h-100">
+          <Col className="d-flex justify-content-center align-items-center h-100">
+            <div className="text-center">
+              <h1 className="display-1">NexaVault Admin Office</h1>
+              <p className="lead">Enter your passcode to access the admin dashboard</p>
+              <Button variant="primary" onClick={() => setShowPasscodeModal(true)}>
+                Enter Passcode
+              </Button>
+              <Modal show={showPasscodeModal} onHide={() => setShowPasscodeModal(false)}>
+                <Modal.Header closeButton>
+                  <Modal.Title>Enter Passcode</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                  <Form onSubmit={handlePasscodeSubmit}>
+                    <Form.Group controlId="passcode">
+                      <Form.Label>Passcode</Form.Label>
+                      <Form.Control
+                        type="password"
+                        value={passcode}
+                        onChange={handlePasscodeChange}
+                        required
+                      />
+                    </Form.Group>
+                    <Button variant="primary" type="submit">
+                      Submit
+                    </Button>
+                  </Form>
+                  {error && <p className="text-danger">{error}</p>}
+                </Modal.Body>
+              </Modal>
+              <Button variant="primary" onClick={() => setShowPasscodeModal(true)}>
+                Enter Two-Factor Code
+              </Button>
+              <Modal show={showPasscodeModal} onHide={() => setShowPasscodeModal(false)}>
+                <Modal.Header closeButton>
+                  <Modal.Title>Enter Two-Factor Code</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                  <Form onSubmit={handleTwoFactorSubmit}>
+                    <Form.Group controlId="twoFactorCode">
+                      <Form.Label>Two-Factor Code</Form.Label>
+                      <Form.Control
+                        type="password"
+                        value={passcode}
+                        onChange={handlePasscodeChange}
+                        required
+                      />
+                    </Form.Group>
+                    <Button variant="primary" type="submit">
+                      Submit
+                    </Button>
+                  </Form>
+                  {error && <p className="text-danger">{error}</p>}
+                </Modal.Body>
+              </Modal>
+            </div>
+          </Col>
+        </Row>
+      </Container>
+    </ThemeProvider>
   );
 };
 
 export default AdminOfficePage;
+
+**src/app/office/page.styles.ts**
+.page {
+  background-color: #0b0f17;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.page-content {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.page-header {
+  background-color: #333;
+  padding: 10px;
+  border-bottom: 1px solid #ccc;
+}
+
+.page-header h1 {
+  color: #fff;
+  font-size: 24px;
+}
+
+.page-header p {
+  color: #ccc;
+  font-size: 16px;
+}
+
+.passcode-modal {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.passcode-modal form {
+  padding: 20px;
+}
+
+.passcode-modal form label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.passcode-modal form input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.passcode-modal form button {
+  background-color: #333;
+  color: #fff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.passcode-modal form button:hover {
+  background-color: #444;
+}
+
+.passcode-modal form button:active {
+  background-color: #555;
+}
+
+.passcode-modal form p {
+  color: #ccc;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+**src/app/office/page.test.tsx**
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import { AdminOfficePage } from './page';
+
+describe('AdminOfficePage', () => {
+  it('renders passcode modal', () => {
+    const { getByText } = render(<AdminOfficePage />);
+    expect(getByText('Enter Passcode')).toBeInTheDocument();
+  });
+
+  it('renders two-factor modal', () => {
+    const { getByText } = render(<AdminOfficePage />);
+    expect(getByText('Enter Two-Factor Code')).toBeInTheDocument();
+  });
+
+  it('submits passcode and redirects to dashboard', async () => {
+    const { getByText, getByPlaceholderText } = render(<AdminOfficePage />);
+    const passcodeInput = getByPlaceholderText('Passcode');
+    const submitButton = getByText('Submit');
+    fireEvent.change(passcodeInput, { target: { value: '123456' } });
+    fireEvent.click(submitButton);
+    await waitFor(() => expect(getByText('Dashboard')).toBeInTheDocument());
+  });
+
+  it('submits two-factor code and redirects to dashboard', async () => {
+    const { getByText, getByPlaceholderText } = render(<AdminOfficePage />);
+    const twoFactorInput = getByPlaceholderText('Two-Factor Code');
+    const submitButton = getByText('Submit');
+    fireEvent.change(twoFactorInput, { target: { value: '123456' } });
+    fireEvent.click(submitButton);
+    await waitFor(() => expect(getByText('Dashboard')).toBeInTheDocument());
+  });
+});
