@@ -8,9 +8,13 @@ interface AIModel {
   apiKey: string;
 }
 
+interface AIResponse {
+  status: number;
+  data: any;
+}
+
 class AIRouter {
   private models: AIModel[];
-  private fallbackModel: AIModel;
   private config: AIRouterConfig;
 
   constructor(config: AIRouterConfig) {
@@ -32,41 +36,41 @@ class AIRouter {
         apiKey: config.openaiApiKey,
       },
     ];
-    this.fallbackModel = this.models[0];
   }
 
-  async routeQuery(query: string): Promise<any> {
-    for (const model of this.models) {
+  async routeQuery(query: string): Promise<AIResponse> {
+    const modelIndex = 0; // Start with the first model
+    let response: AIResponse | null = null;
+
+    for (let i = modelIndex; i < this.models.length; i++) {
+      const model = this.models[i];
       try {
-        const response = await axios.post(`${model.endpoint}query`, {
-          query,
-        }, {
-          headers: {
-            'Authorization': `Bearer ${model.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        return response.data;
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${model.apiKey}`,
+        };
+        const params = {
+          prompt: query,
+          max_tokens: 2048,
+          temperature: 0.7,
+        };
+        const res = await axios.post(`${model.endpoint}completions`, params, { headers });
+        response = {
+          status: res.status,
+          data: res.data,
+        };
+        break;
       } catch (error) {
         console.error(`Error routing query to ${model.name}: ${error.message}`);
         continue;
       }
     }
-    // If all models fail, use the fallback model
-    try {
-      const response = await axios.post(`${this.fallbackModel.endpoint}query`, {
-        query,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${this.fallbackModel.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error(`Error routing query to fallback model ${this.fallbackModel.name}: ${error.message}`);
-      throw error;
+
+    if (!response) {
+      throw new Error('Failed to route query to any AI model');
     }
+
+    return response;
   }
 }
 
@@ -81,18 +85,28 @@ interface AIRouterConfig {
 
 export { AIRouterConfig };
 
-// Example usage:
-import AIRouter from './ai-router';
-import { AIRouterConfig } from '../types/index';
+// Example usage in src/app/api/ai/generate-product/route.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import AIRouter from '../../lib/ai-router';
+import { AIRouterConfig } from '../../types/index';
 
-const config: AIRouterConfig = {
-  groqApiKey: 'YOUR_GROQ_API_KEY',
-  geminiApiKey: 'YOUR_GEMINI_API_KEY',
-  openaiApiKey: 'YOUR_OPENAI_API_KEY',
+const aiRouterConfig: AIRouterConfig = {
+  groqApiKey: process.env.GROQ_API_KEY,
+  geminiApiKey: process.env.GEMINI_API_KEY,
+  openaiApiKey: process.env.OPENAI_API_KEY,
 };
 
-const aiRouter = new AIRouter(config);
+const aiRouter = new AIRouter(aiRouterConfig);
 
-aiRouter.routeQuery('Your query here')
-  .then((response) => console.log(response))
-  .catch((error) => console.error(error));
+const generateProduct = async (req: NextApiRequest, res: NextApiResponse) => {
+  const query = req.body.query;
+  try {
+    const response = await aiRouter.routeQuery(query);
+    res.status(200).json(response.data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to generate product' });
+  }
+};
+
+export default generateProduct;
