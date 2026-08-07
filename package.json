@@ -1,135 +1,97 @@
-Based on the provided `package.json` file, I will generate some unit tests for the dependencies and scripts. 
+Here's an example of how you can write unit tests for the NexaVault Digital Marketplace using Jest.
 
-Please note that these tests are just examples and may need to be modified to fit the specific requirements of your project.
+First, let's assume we have a simple function `calculateTotal` in `utils.js` that we want to test:
 
-**tests/dependencies.test.ts**
+// utils.js
+export function calculateTotal(prices) {
+  return prices.reduce((acc, price) => acc + price, 0);
+}
 
-import { expect } from '@jest/globals';
+Now, let's write some unit tests for this function:
 
-describe('Dependencies', () => {
-  it('should have the correct version of @prisma/client', () => {
-    const prismaClientVersion = require('@prisma/client/package.json').version;
-    expect(prismaClientVersion).toBe('^4.7.1');
+// utils.test.js
+import { calculateTotal } from './utils';
+
+describe('calculateTotal', () => {
+  it('should return 0 when prices array is empty', () => {
+    expect(calculateTotal([])).toBe(0);
   });
 
-  it('should have the correct version of next', () => {
-    const nextVersion = require('next/package.json').version;
-    expect(nextVersion).toBe('14.0.0');
+  it('should return the sum of all prices', () => {
+    const prices = [10, 20, 30];
+    expect(calculateTotal(prices)).toBe(60);
   });
 
-  it('should have the correct version of react', () => {
-    const reactVersion = require('react/package.json').version;
-    expect(reactVersion).toBe('18.2.0');
+  it('should return the sum of all prices with negative numbers', () => {
+    const prices = [10, -20, 30];
+    expect(calculateTotal(prices)).toBe(20);
   });
 
-  it('should have the correct version of tailwindcss', () => {
-    const tailwindcssVersion = require('tailwindcss/package.json').version;
-    expect(tailwindcssVersion).toBe('^3.2.4');
-  });
-});
-
-
-**tests/scripts.test.ts**
-
-import { execSync } from 'child_process';
-import { expect } from '@jest/globals';
-
-describe('Scripts', () => {
-  it('should run the dev script successfully', () => {
-    const output = execSync('npm run dev', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the build script successfully', () => {
-    const output = execSync('npm run build', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the start script successfully', () => {
-    const output = execSync('npm run start', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the lint script successfully', () => {
-    const output = execSync('npm run lint', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the prisma script successfully', () => {
-    const output = execSync('npm run prisma', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the prisma:migrate script successfully', () => {
-    const output = execSync('npm run prisma:migrate', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
-  });
-
-  it('should run the prisma:seed script successfully', () => {
-    const output = execSync('npm run prisma:seed', { stdio: 'pipe' });
-    expect(output.toString()).not.toContain('error');
+  it('should return the sum of all prices with decimal numbers', () => {
+    const prices = [10.5, 20.2, 30.8];
+    expect(calculateTotal(prices)).toBe(61.5);
   });
 });
 
+In this example, we're using Jest's `describe` and `it` functions to define a test suite and individual tests. We're also using Jest's `expect` function to assert that the output of the `calculateTotal` function matches our expectations.
 
-**tests/prisma.test.ts**
+Now, let's assume we have a simple API endpoint in `api.js` that we want to test:
 
-import { PrismaClient } from '@prisma/client';
-import { expect } from '@jest/globals';
+// api.js
+import axios from 'axios';
 
-describe('Prisma', () => {
-  const prisma = new PrismaClient();
+export async function getProducts() {
+  const response = await axios.get('https://api.example.com/products');
+  return response.data;
+}
 
-  it('should connect to the database successfully', async () => {
-    await prisma.$connect();
-    expect(prisma).not.toBeNull();
+Now, let's write some unit tests for this function:
+
+// api.test.js
+import { getProducts } from './api';
+
+describe('getProducts', () => {
+  it('should return an array of products', async () => {
+    const products = await getProducts();
+    expect(products).toBeInstanceOf(Array);
   });
 
-  it('should disconnect from the database successfully', async () => {
-    await prisma.$disconnect();
-    expect(prisma).not.toBeNull();
-  });
-});
-
-
-**tests/next-auth.test.ts**
-
-import NextAuth from 'next-auth';
-import { expect } from '@jest/globals';
-
-describe('Next Auth', () => {
-  it('should have the correct version of next-auth', () => {
-    const nextAuthVersion = require('next-auth/package.json').version;
-    expect(nextAuthVersion).toBe('^4.18.0');
+  it('should return an array of products with the correct length', async () => {
+    const products = await getProducts();
+    expect(products.length).toBeGreaterThan(0);
   });
 
-  it('should authenticate successfully', async () => {
-    const auth = await NextAuth({
-      // Your authentication options here
-    });
-    expect(auth).not.toBeNull();
+  it('should return an array of products with the correct data type', async () => {
+    const products = await getProducts();
+    expect(products[0]).toHaveProperty('id');
+    expect(products[0]).toHaveProperty('name');
+    expect(products[0]).toHaveProperty('price');
   });
 });
 
+In this example, we're using Jest's `describe` and `it` functions to define a test suite and individual tests. We're also using Jest's `expect` function to assert that the output of the `getProducts` function matches our expectations.
 
-**tests/supabase.test.ts**
+Note that in this example, we're using `async/await` to make the tests more readable and easier to write.
 
-import { createClient } from '@supabase/supabase-js';
-import { expect } from '@jest/globals';
+Also, make sure to install the required dependencies and configure Jest in your project before running the tests.
 
-describe('Supabase', () => {
-  const supabaseUrl = 'https://your-supabase-url.supabase.co';
-  const supabaseKey = 'your-supabase-key';
-  const supabaseSecret = 'your-supabase-secret';
+Here's an example of how you can configure Jest in your `package.json` file:
 
-  const supabase = createClient(supabaseUrl, supabaseKey, supabaseSecret);
+"scripts": {
+  "test": "jest"
+},
+"jest": {
+  "moduleDirectories": ["node_modules", "src"],
+  "moduleFileExtensions": ["js", "jsx", "ts", "tsx"],
+  "testEnvironment": "node"
+}
 
-  it('should connect to Supabase successfully', async () => {
-    const { data, error } = await supabase.from('your-table').select('*');
-    expect(data).not.toBeNull();
-    expect(error).toBeNull();
-  });
-});
+And here's an example of how you can configure Jest in your `jest.config.js` file:
 
+module.exports = {
+  moduleDirectories: ['node_modules', 'src'],
+  moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx'],
+  testEnvironment: 'node',
+};
 
-These tests cover the dependencies, scripts, Prisma, Next Auth, and Supabase. You can add more tests as needed to ensure your application is working correctly.
+Note that you may need to adjust the configuration to fit your specific project needs.
