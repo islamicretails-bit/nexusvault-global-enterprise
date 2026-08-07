@@ -1,44 +1,44 @@
 // src/lib/security.ts
-
 import * as crypto from 'crypto';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
-interface SecurityOptions {
+// Define the security configuration interface
+interface SecurityConfig {
   secretKey: string;
   rateLimitMax: number;
   rateLimitDuration: number;
 }
 
+// Define the security class
 class Security {
   private secretKey: string;
   private rateLimiter: RateLimiterMemory;
 
-  constructor(options: SecurityOptions) {
-    this.secretKey = options.secretKey;
+  constructor(config: SecurityConfig) {
+    this.secretKey = config.secretKey;
     this.rateLimiter = new RateLimiterMemory({
-      points: options.rateLimitMax,
-      duration: options.rateLimitDuration,
+      points: config.rateLimitMax,
+      duration: config.rateLimitDuration,
     });
   }
 
+  // Method to verify a token
   async verifyToken(token: string): Promise<boolean> {
     try {
-      const decoded = crypto.createVerify('SHA256');
-      decoded.update(token);
-      const isValid = decoded.verify(this.secretKey, token);
-      return isValid;
+      const decoded = crypto.createHmac('sha256', this.secretKey).update(token).digest('hex');
+      return decoded === token;
     } catch (error) {
       return false;
     }
   }
 
-  async createHmacSignature(data: string): Promise<string> {
-    const hmac = crypto.createHmac('sha256', this.secretKey);
-    hmac.update(data);
-    return hmac.digest('hex');
+  // Method to create a SHA-256 HMAC signature
+  createSignature(data: string): string {
+    return crypto.createHmac('sha256', this.secretKey).update(data).digest('hex');
   }
 
+  // Method to rate limit a request
   async rateLimit(req: NextApiRequest, res: NextApiResponse): Promise<boolean> {
     try {
       const ip = req.ip;
@@ -54,28 +54,20 @@ class Security {
     }
   }
 
-  async validatePayload(payload: any): Promise<boolean> {
-    try {
-      if (!payload || typeof payload !== 'object') {
-        return false;
-      }
-      const requiredFields = ['id', 'name', 'email'];
-      for (const field of requiredFields) {
-        if (!payload[field] || typeof payload[field] !== 'string') {
-          return false;
-        }
-      }
-      return true;
-    } catch (error) {
+  // Method to validate a payload
+  validatePayload(payload: any): boolean {
+    if (!payload || typeof payload !== 'object') {
       return false;
     }
+    return true;
   }
 }
 
+// Export the security class
 export default Security;
 
 // src/types/index.ts
-interface SecurityOptions {
+interface SecurityConfig {
   secretKey: string;
   rateLimitMax: number;
   rateLimitDuration: number;
@@ -83,20 +75,24 @@ interface SecurityOptions {
 
 interface User {
   id: string;
-  name: string;
   email: string;
+  password: string;
+  role: string;
 }
 
 interface Product {
   id: string;
   name: string;
+  description: string;
   price: number;
 }
 
 interface Order {
   id: string;
   userId: string;
-  products: Product[];
+  productId: string;
+  quantity: number;
+  total: number;
 }
 
 interface OrderItem {
@@ -104,18 +100,20 @@ interface OrderItem {
   orderId: string;
   productId: string;
   quantity: number;
+  total: number;
 }
 
 interface CustomRequest {
   id: string;
   userId: string;
   description: string;
+  status: string;
 }
 
 interface AnalyticsLog {
   id: string;
   userId: string;
-  event: string;
+  action: string;
   timestamp: Date;
 }
 
@@ -148,285 +146,91 @@ interface AIServiceLog {
 }
 
 interface AIRouterConfig {
-  id: string;
-  userId: string;
-  config: string;
+  groq: {
+    apiKey: string;
+    endpoint: string;
+  };
+  gemini: {
+    apiKey: string;
+    endpoint: string;
+  };
+  openai: {
+    apiKey: string;
+    endpoint: string;
+  };
 }
 
 interface GeoLocation {
-  id: string;
-  userId: string;
-  location: string;
-}
-
-interface PayoutRequestPayload {
-  id: string;
-  userId: string;
-  amount: number;
+  ip: string;
+  country: string;
+  city: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface NotificationPayload {
-  id: string;
-  userId: string;
+  type: string;
   message: string;
+  data: any;
 }
 
 interface DynamicFeatureMetadata {
   id: string;
-  userId: string;
-  feature: string;
-  metadata: string;
+  name: string;
+  description: string;
+  enabled: boolean;
 }
 
-// src/app/api/cron/auto-generate/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const autoGenerateRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    // Auto-generate products logic here
-    res.status(200).json({ message: 'Products generated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
+export {
+  SecurityConfig,
+  User,
+  Product,
+  Order,
+  OrderItem,
+  CustomRequest,
+  AnalyticsLog,
+  AffiliateReferral,
+  WalletTransaction,
+  PayoutRequest,
+  AIServiceLog,
+  AIRouterConfig,
+  GeoLocation,
+  NotificationPayload,
+  DynamicFeatureMetadata,
 };
 
-export default autoGenerateRoute;
-
-// src/app/api/ai/generate-product/route.ts
+// src/app/api/middleware/security.ts
+import Security from '../../lib/security';
 import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
 
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
+const securityConfig: SecurityConfig = {
+  secretKey: process.env.SECRET_KEY as string,
   rateLimitMax: 100,
   rateLimitDuration: 60,
-});
-
-const generateProductRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Generate product logic here
-    res.status(200).json({ message: 'Product generated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
 };
 
-export default generateProductRoute;
+const security = new Security(securityConfig);
 
-// src/app/api/payments/checkout/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const checkoutRoute = async (req: NextApiRequest, res: NextApiResponse) => {
+export default async function securityMiddleware(req: NextApiRequest, res: NextApiResponse) {
   try {
-    if (!security.rateLimit(req, res)) {
+    const token = req.headers.authorization;
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const isValid = await security.verifyToken(token);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    const isRateLimited = await security.rateLimit(req, res);
+    if (!isRateLimited) {
       return;
     }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
+    const isValidPayload = security.validatePayload(req.body);
+    if (!isValidPayload) {
+      return res.status(400).json({ error: 'Invalid payload' });
     }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Checkout logic here
-    res.status(200).json({ message: 'Checkout successful' });
+    return next();
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
-};
-
-export default checkoutRoute;
-
-// src/app/api/webhooks/stripe/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const stripeWebhookRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Stripe webhook logic here
-    res.status(200).json({ message: 'Webhook received successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export default stripeWebhookRoute;
-
-// src/app/api/admin/analytics/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const analyticsRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Analytics logic here
-    res.status(200).json({ message: 'Analytics data retrieved successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export default analyticsRoute;
-
-// src/app/api/vendor/payouts/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const payoutsRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Payouts logic here
-    res.status(200).json({ message: 'Payouts data retrieved successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export default payoutsRoute;
-
-// src/app/api/downloads/secure/route.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import Security from '../../../lib/security';
-
-const security = new Security({
-  secretKey: process.env.SECRET_KEY,
-  rateLimitMax: 100,
-  rateLimitDuration: 60,
-});
-
-const secureDownloadsRoute = async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    if (!security.rateLimit(req, res)) {
-      return;
-    }
-
-    const token = req.headers['x-auth-token'];
-    if (!token || !(await security.verifyToken(token))) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    const payload = req.body;
-    if (!payload || !(await security.validatePayload(payload))) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    // Secure downloads logic here
-    res.status(200).json({ message: 'Download link generated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export default secureDownloadsRoute;
+}
