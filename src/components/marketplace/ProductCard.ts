@@ -21,23 +21,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             alt={product.name}
             width={200}
             height={200}
-            className="rounded-lg"
+            className="object-cover rounded-lg"
           />
         </a>
       </Link>
-      <h2 className="text-lg font-bold mt-2">
-        <Link href={`/products/${product.id}`}>
-          <a>{product.name}</a>
-        </Link>
-      </h2>
-      <p className="text-gray-600 text-sm mt-1">{product.description}</p>
-      <div className="flex justify-between items-center mt-4">
-        <span className="text-lg font-bold">
-          {convertPrice(product.price, currency)}
-        </span>
-        <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          Buy Now
-        </button>
+      <div className="mt-4">
+        <h2 className="text-lg font-bold">{product.name}</h2>
+        <p className="text-gray-600">{product.description}</p>
+        <div className="flex justify-between items-center mt-4">
+          <span className="text-lg font-bold">
+            {convertPrice(product.price, currency)}
+          </span>
+          <Link href={`/products/${product.id}`}>
+            <a className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+              View Details
+            </a>
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -58,7 +58,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: string;
+  role: 'ADMIN' | 'VENDOR' | 'CUSTOMER' | 'AFFILIATE';
 }
 
 interface Order {
@@ -66,7 +66,7 @@ interface Order {
   userId: number;
   productId: number;
   quantity: number;
-  total: number;
+  totalPrice: number;
 }
 
 interface OrderItem {
@@ -80,6 +80,7 @@ interface CustomRequest {
   id: number;
   userId: number;
   description: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 interface AnalyticsLog {
@@ -91,97 +92,121 @@ interface AnalyticsLog {
 
 interface AffiliateReferral {
   id: number;
-  userId: number;
+  affiliateId: number;
   referralId: number;
+  commission: number;
 }
 
 interface WalletTransaction {
   id: number;
   userId: number;
   amount: number;
-  type: string;
+  type: 'DEPOSIT' | 'WITHDRAWAL';
 }
 
 interface PayoutRequest {
   id: number;
   userId: number;
   amount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 interface AIServiceLog {
   id: number;
   userId: number;
-  service: string;
-  log: string;
+  serviceType: string;
+  requestData: string;
+  responseData: string;
 }
 
 interface AIRouterConfig {
-  id: number;
-  userId: number;
-  config: string;
+  groqApiKey: string;
+  geminiApiKey: string;
+  openaiApiKey: string;
 }
 
 interface GeoLocation {
-  id: number;
+  ip: string;
+  country: string;
+  region: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+}
+
+interface PayoutRequestPayload {
   userId: number;
-  location: string;
+  amount: number;
 }
 
 interface NotificationPayload {
-  id: number;
   userId: number;
   message: string;
 }
 
 interface DynamicFeatureMetadata {
   id: number;
-  userId: number;
-  feature: string;
-  metadata: string;
+  name: string;
+  description: string;
+  enabled: boolean;
 }
 
 // src/lib/geo-currency.ts
 import axios from 'axios';
 
+interface GeoLocation {
+  ip: string;
+  country: string;
+  region: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+}
+
 interface Currency {
   code: string;
   symbol: string;
+  rate: number;
 }
 
-interface ExchangeRate {
-  base: string;
-  rates: { [key: string]: number };
-}
-
-const currencies: { [key: string]: Currency } = {
-  USD: { code: 'USD', symbol: '$' },
-  PKR: { code: 'PKR', symbol: '₨' },
-  EUR: { code: 'EUR', symbol: '€' },
-  GBP: { code: 'GBP', symbol: '£' },
-  AED: { code: 'AED', symbol: 'د.إ' },
+const getGeoLocation = async (ip: string): Promise<GeoLocation> => {
+  const response = await axios.get(`https://ip-api.com/json/${ip}`);
+  return response.data;
 };
 
-const getExchangeRate = async (base: string): Promise<ExchangeRate> => {
-  const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${base}`);
+const getCurrency = async (country: string): Promise<Currency> => {
+  const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${country}`);
   return response.data;
 };
 
 const useCurrency = () => {
-  const [currency, setCurrency] = React.useState('USD');
-  const [exchangeRate, setExchangeRate] = React.useState<ExchangeRate | null>(null);
+  const [currency, setCurrency] = React.useState<Currency | null>(null);
+  const [geoLocation, setGeoLocation] = React.useState<GeoLocation | null>(null);
 
   React.useEffect(() => {
-    const fetchExchangeRate = async () => {
-      const rate = await getExchangeRate(currency);
-      setExchangeRate(rate);
+    const fetchGeoLocation = async () => {
+      const ip = await axios.get('https://api.ipify.org');
+      const location = await getGeoLocation(ip.data);
+      setGeoLocation(location);
     };
-    fetchExchangeRate();
-  }, [currency]);
+    fetchGeoLocation();
+  }, []);
 
-  const convertPrice = (price: number, targetCurrency: string) => {
-    if (!exchangeRate) return price;
-    const rate = exchangeRate.rates[targetCurrency];
-    return price * rate;
+  React.useEffect(() => {
+    if (geoLocation) {
+      const fetchCurrency = async () => {
+        const currency = await getCurrency(geoLocation.country);
+        setCurrency(currency);
+      };
+      fetchCurrency();
+    }
+  }, [geoLocation]);
+
+  const convertPrice = (price: number, currencyCode: string) => {
+    if (currency) {
+      return (price * currency.rate).toFixed(2);
+    }
+    return price.toFixed(2);
   };
 
   return { currency, convertPrice };
