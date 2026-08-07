@@ -132,9 +132,8 @@ export interface GeoLocation {
   country: string;
   region: string;
   city: string;
-  lat: number;
-  lon: number;
-  timezone: string;
+  latitude: number;
+  longitude: number;
 }
 
 // NotificationPayload Interface
@@ -147,7 +146,7 @@ export interface NotificationPayload {
 // DynamicFeatureMetadata Interface
 export interface DynamicFeatureMetadata {
   id: string;
-  featureName: string;
+  name: string;
   description: string;
   version: string;
   createdAt: Date;
