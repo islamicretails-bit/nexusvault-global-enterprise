@@ -1,155 +1,118 @@
 // src/lib/notifications.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { sendEmail } from './email';
-import { sendWebhook } from './webhook';
+import { webhook } from './webhook';
 import { NotificationPayload } from '../types/index';
 
 interface NotificationConfig {
   email: {
-    enabled: boolean;
     from: string;
     to: string;
+    subject: string;
+    body: string;
   };
   webhook: {
-    enabled: boolean;
     url: string;
+    method: string;
+    headers: { [key: string]: string };
+    body: string;
   };
 }
 
 const notificationConfig: NotificationConfig = {
   email: {
-    enabled: true,
-    from: 'no-reply@example.com',
-    to: 'admin@example.com',
+    from: 'your-email@example.com',
+    to: 'recipient-email@example.com',
+    subject: 'Notification from NexusVault Global Enterprise',
+    body: 'This is a notification from NexusVault Global Enterprise',
   },
   webhook: {
-    enabled: true,
     url: 'https://example.com/webhook',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message: 'Webhook notification from NexusVault Global Enterprise' }),
   },
 };
 
-const sendNotification = async (payload: NotificationPayload) => {
-  if (notificationConfig.email.enabled) {
-    await sendEmail(payload);
+async function sendNotification(payload: NotificationPayload) {
+  try {
+    // Send email notification
+    await sendEmail({
+      from: notificationConfig.email.from,
+      to: notificationConfig.email.to,
+      subject: notificationConfig.email.subject,
+      body: notificationConfig.email.body,
+    });
+
+    // Send webhook notification
+    await webhook({
+      url: notificationConfig.webhook.url,
+      method: notificationConfig.webhook.method,
+      headers: notificationConfig.webhook.headers,
+      body: notificationConfig.webhook.body,
+    });
+
+    return { success: true, message: 'Notification sent successfully' };
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    return { success: false, message: 'Error sending notification' };
   }
-
-  if (notificationConfig.webhook.enabled) {
-    await sendWebhook(payload);
-  }
-};
-
-const sendEmail = async (payload: NotificationPayload) => {
-  const { subject, body } = payload;
-  const mailOptions = {
-    from: notificationConfig.email.from,
-    to: notificationConfig.email.to,
-    subject,
-    text: body,
-  };
-
-  // Use a email service like Nodemailer or Sendgrid to send the email
-  // For example:
-  // const nodemailer = require('nodemailer');
-  // const transporter = nodemailer.createTransport({
-  //   host: 'smtp.example.com',
-  //   port: 587,
-  //   secure: false, // or 'STARTTLS'
-  //   auth: {
-  //     user: 'username',
-  //     pass: 'password',
-  //   },
-  // });
-  // transporter.sendMail(mailOptions, (error, info) => {
-  //   if (error) {
-  //     console.log(error);
-  //   } else {
-  //     console.log('Email sent: ' + info.response);
-  //   }
-  // });
-};
-
-const sendWebhook = async (payload: NotificationPayload) => {
-  const { event, data } = payload;
-  const webhookUrl = notificationConfig.webhook.url;
-
-  // Use a HTTP client like Axios to send the webhook request
-  // For example:
-  // const axios = require('axios');
-  // axios.post(webhookUrl, {
-  //   event,
-  //   data,
-  // })
-  // .then((response) => {
-  //   console.log(response.data);
-  // })
-  // .catch((error) => {
-  //   console.log(error);
-  // });
-};
+}
 
 export { sendNotification };
 
-// src/types/index.ts
-interface NotificationPayload {
-  subject: string;
-  body: string;
-  event?: string;
-  data?: any;
-}
-
-export { NotificationPayload };
-
 // src/lib/email.ts
-import { NextApiRequest, NextApiResponse } from 'next';
 import nodemailer from 'nodemailer';
 
-const sendEmail = async (payload: NotificationPayload) => {
-  const { subject, body } = payload;
-  const mailOptions = {
-    from: 'no-reply@example.com',
-    to: 'admin@example.com',
-    subject,
-    text: body,
-  };
-
+async function sendEmail(options: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+}) {
   const transporter = nodemailer.createTransport({
     host: 'smtp.example.com',
     port: 587,
     secure: false, // or 'STARTTLS'
     auth: {
-      user: 'username',
-      pass: 'password',
+      user: 'your-email@example.com',
+      pass: 'your-password',
     },
   });
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.log(error);
-    } else {
-      console.log('Email sent: ' + info.response);
-    }
-  });
-};
+  const mailOptions = {
+    from: options.from,
+    to: options.to,
+    subject: options.subject,
+    text: options.body,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
 
 export { sendEmail };
 
 // src/lib/webhook.ts
 import axios from 'axios';
 
-const sendWebhook = async (payload: NotificationPayload) => {
-  const { event, data } = payload;
-  const webhookUrl = 'https://example.com/webhook';
-
-  axios.post(webhookUrl, {
-    event,
-    data,
-  })
-  .then((response) => {
-    console.log(response.data);
-  })
-  .catch((error) => {
-    console.log(error);
+async function webhook(options: {
+  url: string;
+  method: string;
+  headers: { [key: string]: string };
+  body: string;
+}) {
+  const response = await axios({
+    method: options.method,
+    url: options.url,
+    headers: options.headers,
+    data: options.body,
   });
-};
 
-export { sendWebhook };
+  if (response.status !== 200) {
+    throw new Error(`Webhook failed with status code ${response.status}`);
+  }
+}
+
+export { webhook };
