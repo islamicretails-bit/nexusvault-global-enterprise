@@ -3,138 +3,102 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { prisma } from '../../../lib/prisma';
 import { CustomRequest } from '../../../types';
-import Table from '../../Table';
-import TableHeader from '../../TableHeader';
-import TableRow from '../../TableRow';
-import TableCell from '../../TableCell';
+import { AiOutlineSearch } from 'react-icons/ai';
+import { AiOutlineDelete } from 'react-icons/ai';
+import { AiOutlineEdit } from 'react-icons/ai';
+import { AiOutlineEye } from 'react-icons/ai';
 
-interface CustomRequestsTableProps {
+interface Props {
   customRequests: CustomRequest[];
 }
 
-const CustomRequestsTable: React.FC<CustomRequestsTableProps> = ({ customRequests }) => {
+const CustomRequestsTable: React.FC<Props> = ({ customRequests }) => {
   const { data: session } = useSession();
-  const [requests, setRequests] = useState<CustomRequest[]>(customRequests);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredCustomRequests, setFilteredCustomRequests] = useState(customRequests);
 
   useEffect(() => {
-    setRequests(customRequests);
-  }, [customRequests]);
+    const filteredRequests = customRequests.filter((request) =>
+      request.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredCustomRequests(filteredRequests);
+  }, [searchTerm, customRequests]);
 
-  const handleDeleteRequest = async (id: number) => {
+  const handleDelete = async (id: number) => {
     try {
       await prisma.customRequest.delete({
         where: {
           id,
         },
       });
-      setRequests(requests.filter((request) => request.id !== id));
+      const updatedCustomRequests = customRequests.filter((request) => request.id !== id);
+      setFilteredCustomRequests(updatedCustomRequests);
     } catch (error) {
       console.error(error);
     }
   };
 
+  const handleEdit = (id: number) => {
+    // Implement edit functionality
+  };
+
+  const handleView = (id: number) => {
+    // Implement view functionality
+  };
+
   return (
-    <Table>
-      <TableHeader>
-        <TableCell>ID</TableCell>
-        <TableCell>Customer Name</TableCell>
-        <TableCell>Request Description</TableCell>
-        <TableCell>Status</TableCell>
-        <TableCell>Actions</TableCell>
-      </TableHeader>
-      {requests.map((request) => (
-        <TableRow key={request.id}>
-          <TableCell>{request.id}</TableCell>
-          <TableCell>{request.customerName}</TableCell>
-          <TableCell>{request.requestDescription}</TableCell>
-          <TableCell>{request.status}</TableCell>
-          <TableCell>
-            <button
-              type="button"
-              className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-              onClick={() => handleDeleteRequest(request.id)}
-            >
-              Delete
-            </button>
-          </TableCell>
-        </TableRow>
-      ))}
-    </Table>
+    <div className="overflow-x-auto">
+      <div className="flex justify-between mb-4">
+        <h2 className="text-lg font-bold">Custom Requests</h2>
+        <div className="flex items-center">
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search custom requests"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <AiOutlineSearch className="ml-2 text-gray-500" size={20} />
+        </div>
+      </div>
+      <table className="w-full table-auto">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="px-4 py-2 text-left">Title</th>
+            <th className="px-4 py-2 text-left">Description</th>
+            <th className="px-4 py-2 text-left">Status</th>
+            <th className="px-4 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredCustomRequests.map((request) => (
+            <tr key={request.id}>
+              <td className="px-4 py-2">{request.title}</td>
+              <td className="px-4 py-2">{request.description}</td>
+              <td className="px-4 py-2">{request.status}</td>
+              <td className="px-4 py-2 flex items-center">
+                <AiOutlineEye
+                  className="mr-2 text-gray-500 cursor-pointer"
+                  size={20}
+                  onClick={() => handleView(request.id)}
+                />
+                <AiOutlineEdit
+                  className="mr-2 text-gray-500 cursor-pointer"
+                  size={20}
+                  onClick={() => handleEdit(request.id)}
+                />
+                <AiOutlineDelete
+                  className="text-red-500 cursor-pointer"
+                  size={20}
+                  onClick={() => handleDelete(request.id)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
 export default CustomRequestsTable;
-
-// src/types/index.ts
-interface CustomRequest {
-  id: number;
-  customerName: string;
-  requestDescription: string;
-  status: string;
-}
-
-// src/components/Table.tsx
-import React from 'react';
-
-interface TableProps {
-  children: React.ReactNode;
-}
-
-const Table: React.FC<TableProps> = ({ children }) => {
-  return (
-    <table className="w-full table-auto">
-      {children}
-    </table>
-  );
-};
-
-export default Table;
-
-// src/components/TableHeader.tsx
-import React from 'react';
-
-interface TableHeaderProps {
-  children: React.ReactNode;
-}
-
-const TableHeader: React.FC<TableHeaderProps> = ({ children }) => {
-  return (
-    <thead className="bg-gray-50">
-      <tr>{children}</tr>
-    </thead>
-  );
-};
-
-export default TableHeader;
-
-// src/components/TableRow.tsx
-import React from 'react';
-
-interface TableRowProps {
-  children: React.ReactNode;
-}
-
-const TableRow: React.FC<TableRowProps> = ({ children }) => {
-  return (
-    <tr className="border-b border-gray-200">{children}</tr>
-  );
-};
-
-export default TableRow;
-
-// src/components/TableCell.tsx
-import React from 'react';
-
-interface TableCellProps {
-  children: React.ReactNode;
-}
-
-const TableCell: React.FC<TableCellProps> = ({ children }) => {
-  return (
-    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-      {children}
-    </td>
-  );
-};
-
-export default TableCell;
