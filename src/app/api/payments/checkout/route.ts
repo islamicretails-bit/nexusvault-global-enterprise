@@ -1,138 +1,97 @@
 // src/app/api/payments/checkout/route.ts
-import type { NextApiRequest, NextApiResponse } from 'next';
+
+import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { z } from 'zod';
-import { NextApiRequestWithUser } from '../lib/types';
-import { getStripeSession } from '../lib/stripe';
+import { stripe } from 'src/lib/stripe';
+import { paypal } from 'src/lib/paypal';
+import { geoCurrency } from 'src/lib/geo-currency';
+import { security } from 'src/lib/security';
+import { notifications } from 'src/lib/notifications';
 
 const prisma = new PrismaClient();
 
-const CheckoutRoute = async (req: NextApiRequestWithUser, res: NextApiResponse) => {
-  const { product_id, quantity } = req.body;
-
-  if (!product_id || !quantity) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  const product = await prisma.products.findUnique({
-    where: { id: product_id },
-  });
-
-  if (!product) {
-    return res.status(404).json({ error: 'Product not found' });
-  }
-
-  const user = req.user;
-
-  const stripeSession = await getStripeSession({
-    product_id,
-    quantity,
-    user_id: user.id,
-  });
-
-  if (!stripeSession) {
-    return res.status(500).json({ error: 'Failed to create Stripe session' });
-  }
-
-  return res.json({ stripeSession });
-};
-
-export default CheckoutRoute;
-
-// src/app/api/payments/checkout/route.ts (Type Definition)
-import type { NextApiRequest, NextApiResponse } from 'next';
-import type { PrismaClient } from '@prisma/client';
-import type { ZodError } from 'zod';
-
-export type NextApiRequestWithUser = NextApiRequest & {
-  user: {
-    id: string;
-  };
-};
-
-export type CheckoutRouteResponse = {
-  stripeSession: {
-    id: string;
-  };
-};
-
-export type CheckoutRouteError = {
-  error: string;
-};
-
-export type CheckoutRouteRequest = {
-  product_id: string;
+interface CheckoutRequest {
+  userId: string;
+  productId: string;
   quantity: number;
-};
+  paymentMethod: 'stripe' | 'paypal';
+}
 
-export type CheckoutRouteSchema = z.ZodObject<{
-  product_id: z.ZodString;
-  quantity: z.ZodNumber;
-}>;
+interface CheckoutResponse {
+  success: boolean;
+  message: string;
+  orderId: string | null;
+}
 
-export type CheckoutRouteErrorSchema = z.ZodObject<{
-  error: z.ZodString;
-}>;
+const checkoutRoute = async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
 
-export type CheckoutRouteResponseSchema = z.ZodObject<{
-  stripeSession: z.ZodObject<{
-    id: z.ZodString;
-  }>;
-}>;
+  const { userId, productId, quantity, paymentMethod } = req.body as CheckoutRequest;
 
-export const CheckoutRouteSchema = z.object({
-  product_id: z.string(),
-  quantity: z.number(),
-});
+  if (!userId || !productId || !quantity || !paymentMethod) {
+    return res.status(400).json({ success: false, message: 'Invalid request body' });
+  }
 
-export const CheckoutRouteErrorSchema = z.object({
-  error: z.string(),
-});
-
-export const CheckoutRouteResponseSchema = z.object({
-  stripeSession: z.object({
-    id: z.string(),
-  }),
-});
-
-// src/app/api/payments/checkout/route.ts (Schema Validation)
-import { z } from 'zod';
-
-const CheckoutRouteSchema = z.object({
-  product_id: z.string(),
-  quantity: z.number(),
-});
-
-const CheckoutRouteErrorSchema = z.object({
-  error: z.string(),
-});
-
-const CheckoutRouteResponseSchema = z.object({
-  stripeSession: z.object({
-    id: z.string(),
-  }),
-});
-
-export const validateCheckoutRequest = (req: NextApiRequest) => {
   try {
-    const result = CheckoutRouteSchema.parse(req.body);
-    return result;
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { error: error.issues.map((issue) => issue.message).join(', ') };
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-    throw error;
+
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const order = await prisma.order.create({
+      data: {
+        userId,
+        productId,
+        quantity,
+        total: product.price * quantity,
+      },
+    });
+
+    if (paymentMethod === 'stripe') {
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: order.total,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      });
+
+      const paymentIntentId = paymentIntent.id;
+      const clientSecret = paymentIntent.client_secret;
+
+      return res.json({
+        success: true,
+        message: 'Checkout successful',
+        orderId: order.id,
+        paymentIntentId,
+        clientSecret,
+      });
+    } else if (paymentMethod === 'paypal') {
+      const paymentUrl = await paypal.createPaymentUrl({
+        amount: order.total,
+        currency: 'usd',
+        return_url: `${req.headers.origin}/payment/success`,
+        cancel_url: `${req.headers.origin}/payment/cancel`,
+      });
+
+      return res.json({
+        success: true,
+        message: 'Checkout successful',
+        orderId: order.id,
+        paymentUrl,
+      });
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid payment method' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
-export const validateCheckoutResponse = (res: NextApiResponse) => {
-  try {
-    const result = CheckoutRouteResponseSchema.parse(res.json);
-    return result;
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { error: error.issues.map((issue) => issue.message).join(', ') };
-    }
-    throw error;
-  }
-};
+export default checkoutRoute;
