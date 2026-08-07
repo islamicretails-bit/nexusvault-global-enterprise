@@ -1,5 +1,4 @@
 // src/lib/geo-currency.ts
-
 import axios from 'axios';
 import { GeoLocation } from '../types/index';
 
@@ -50,19 +49,19 @@ class GeoCurrency {
     return geoLocation;
   }
 
-  async getExchangeRate(currency: string): Promise<ExchangeRate> {
+  async getExchangeRate(currency: string): Promise<ExchangeRate[]> {
     const response = await axios.get(`${this.apiEndpoint}/exchange_rate/${currency}?key=${this.apiKey}`);
-    const exchangeRate: ExchangeRate = {
-      currency: response.data.currency,
-      rate: response.data.rate,
-    };
-    return exchangeRate;
+    const exchangeRates: ExchangeRate[] = response.data.exchange_rate;
+    return exchangeRates;
   }
 
   async convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<number> {
-    const fromExchangeRate = await this.getExchangeRate(fromCurrency);
-    const toExchangeRate = await this.getExchangeRate(toCurrency);
-    const convertedAmount = amount * (toExchangeRate.rate / fromExchangeRate.rate);
+    const exchangeRates = await this.getExchangeRate(fromCurrency);
+    const toCurrencyRate = exchangeRates.find((rate) => rate.currency === toCurrency);
+    if (!toCurrencyRate) {
+      throw new Error(`No exchange rate found for ${toCurrency}`);
+    }
+    const convertedAmount = amount * toCurrencyRate.rate;
     return convertedAmount;
   }
 }
@@ -70,8 +69,7 @@ class GeoCurrency {
 export default GeoCurrency;
 
 // src/types/index.ts (GeoLocation interface)
-
-export interface GeoLocation {
+interface GeoLocation {
   ip: string;
   countryCode: string;
   countryName: string;
@@ -85,23 +83,19 @@ export interface GeoLocation {
   currency: string;
 }
 
-// Example usage in src/app/api/geo-currency/route.ts
-
-import { NextApiRequest, NextApiResponse } from 'next';
-import GeoCurrency from '../../lib/geo-currency';
+// Example usage
+import GeoCurrency from './geo-currency';
 
 const geoCurrency = new GeoCurrency('https://api.example.com', 'YOUR_API_KEY');
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === 'GET') {
-    const ipAddress = req.query.ipAddress;
-    const geoLocation = await geoCurrency.getGeoLocation(ipAddress as string);
-    res.json(geoLocation);
-  } else if (req.method === 'POST') {
-    const { amount, fromCurrency, toCurrency } = req.body;
-    const convertedAmount = await geoCurrency.convertCurrency(amount, fromCurrency, toCurrency);
-    res.json({ convertedAmount });
-  } else {
-    res.status(405).json({ error: 'Method not allowed' });
-  }
-}
+geoCurrency.getGeoLocation('8.8.8.8').then((geoLocation) => {
+  console.log(geoLocation);
+});
+
+geoCurrency.getExchangeRate('USD').then((exchangeRates) => {
+  console.log(exchangeRates);
+});
+
+geoCurrency.convertCurrency(100, 'USD', 'EUR').then((convertedAmount) => {
+  console.log(convertedAmount);
+});
